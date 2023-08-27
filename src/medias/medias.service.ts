@@ -1,26 +1,53 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { CreateMediaDto } from './dto/create-media.dto';
-import { UpdateMediaDto } from './dto/update-media.dto';
+import { MediasRepository } from './medias.repository';
 
 @Injectable()
 export class MediasService {
-  create(createMediaDto: CreateMediaDto) {
-    return 'This action adds a new media';
+  
+  constructor(private readonly repository: MediasRepository) {}
+
+  async create(body: CreateMediaDto) {
+    const verifyDuplicity = await this.findOneByTitleAndUsername(body.title, body.username);
+    
+    if(verifyDuplicity) throw new HttpException('Media with this title and username already exists', HttpStatus.CONFLICT);
+
+    return await this.repository.create(body);
   }
 
-  findAll() {
-    return `This action returns all medias`;
+  async findAll() {
+    return await this.repository.findAll();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} media`;
+  async findOne(id: number) {
+    const media = await this.repository.findOne(id);
+
+    if(!media) throw new HttpException('Media not found', HttpStatus.NOT_FOUND);
+
+    return media;
   }
 
-  update(id: number, updateMediaDto: UpdateMediaDto) {
-    return `This action updates a #${id} media`;
+  async findOneByTitleAndUsername(title: string, username: string) {
+    return await this.repository.findOneByTitleAndUsername(title, username);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} media`;
+  async update(id: number, body: CreateMediaDto) {
+    const exists = await this.repository.findOne(id);
+
+    if(!exists) throw new HttpException('Media not found', HttpStatus.NOT_FOUND);
+
+    const verifyDuplicity = await this.findOneByTitleAndUsername(body.title, body.username);
+
+    if(verifyDuplicity) throw new HttpException('Media with this title and username already exists', HttpStatus.CONFLICT);
+    
+    return await this.repository.update(id, body);
+  }
+
+  async remove(id: number) {
+    const exists = await this.repository.findOne(id);
+
+    if(!exists) throw new HttpException('Media not found', HttpStatus.NOT_FOUND);
+    
+    return await this.repository.remove(id);
   }
 }
