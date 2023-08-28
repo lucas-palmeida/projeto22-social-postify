@@ -1,53 +1,62 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { CreateMediaDto } from './dto/create-media.dto';
 import { MediasRepository } from './medias.repository';
+import { PublicationsService } from 'src/publications/publications.service';
 
 @Injectable()
 export class MediasService {
   
-  constructor(private readonly repository: MediasRepository) {}
+  constructor(
+    @Inject(forwardRef(() => PublicationsService))
+    private readonly publicationsService: PublicationsService,
+    private readonly mediasRepository: MediasRepository
+    ) {}
 
   async create(body: CreateMediaDto) {
     const verifyDuplicity = await this.findOneByTitleAndUsername(body.title, body.username);
     
-    if(verifyDuplicity) throw new HttpException('Media with this title and username already exists', HttpStatus.CONFLICT);
+    if(verifyDuplicity) throw new ConflictException('Media with this title and username already exists');
 
-    return await this.repository.create(body);
+    return await this.mediasRepository.create(body);
   }
 
   async findAll() {
-    return await this.repository.findAll();
+    return await this.mediasRepository.findAll();
   }
 
   async findOne(id: number) {
-    const media = await this.repository.findOne(id);
+    const media = await this.mediasRepository.findOne(id);
 
-    if(!media) throw new HttpException('Media not found', HttpStatus.NOT_FOUND);
+    if(!media) throw new NotFoundException('Media not found');
 
     return media;
   }
 
   async findOneByTitleAndUsername(title: string, username: string) {
-    return await this.repository.findOneByTitleAndUsername(title, username);
+    return await this.mediasRepository.findOneByTitleAndUsername(title, username);
   }
 
   async update(id: number, body: CreateMediaDto) {
-    const exists = await this.repository.findOne(id);
+    const exists = await this.mediasRepository.findOne(id);
 
-    if(!exists) throw new HttpException('Media not found', HttpStatus.NOT_FOUND);
+    if(!exists) throw new NotFoundException('Media not found');
 
     const verifyDuplicity = await this.findOneByTitleAndUsername(body.title, body.username);
 
-    if(verifyDuplicity) throw new HttpException('Media with this title and username already exists', HttpStatus.CONFLICT);
+    if(verifyDuplicity) throw new ConflictException('Media with this title and username already exists');
     
-    return await this.repository.update(id, body);
+    return await this.mediasRepository.update(id, body);
   }
 
   async remove(id: number) {
-    const exists = await this.repository.findOne(id);
+    const exists = await this.mediasRepository.findOne(id);
 
-    if(!exists) throw new HttpException('Media not found', HttpStatus.NOT_FOUND);
+    if(!exists) throw new NotFoundException('Media not found');
     
-    return await this.repository.remove(id);
+    const publicationWithThisMedia = await this.publicationsService.findOneByMediaId(id);
+
+    if(publicationWithThisMedia) throw new ForbiddenException(`Cannot delete media with id: ${id} because it is used in publication with id: ${publicationWithThisMedia.id}`);
+
+    return await this.mediasRepository.remove(id);
   }
 }

@@ -1,26 +1,49 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
+import { PostsRepository } from './posts.repository';
+import { PublicationsService } from 'src/publications/publications.service';
 
 @Injectable()
 export class PostsService {
-  create(createPostDto: CreatePostDto) {
-    return 'This action adds a new post';
+  constructor(
+    @Inject(forwardRef(() => PublicationsService))
+    private readonly publicationsService: PublicationsService,
+    private readonly postsRepository: PostsRepository
+  ) { }
+  
+  async create(post: CreatePostDto) {
+    return await this.postsRepository.create(post);
   }
 
-  findAll() {
-    return `This action returns all posts`;
+  async findAll() {
+    return await this.postsRepository.findAll();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} post`;
+  async findOne(id: number) {
+    const post = await this.postsRepository.findOne(id);
+
+    if(!post) throw new NotFoundException(`Not found post with id: ${id}`);
+
+    return post;
   }
 
-  update(id: number, updatePostDto: UpdatePostDto) {
-    return `This action updates a #${id} post`;
+  async update(id: number, updatePost: CreatePostDto) {
+    const exists = await this.postsRepository.findOne(id);
+
+    if(!exists) throw new NotFoundException(`Not found post with id: ${id}`);
+
+    return await this.postsRepository.update(id, updatePost);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} post`;
+  async remove(id: number) {
+    await this.postsRepository.findOne(id);
+
+    const publicationWithThisPost = await this.publicationsService.findOneByPostId(id);
+
+    console.log(publicationWithThisPost);
+
+    if(publicationWithThisPost) throw new ForbiddenException(`Cannot delete post with id: ${id} because it is used in publication with id: ${publicationWithThisPost.id}`);
+    
+    return await this.postsRepository.remove(id);
   }
 }
